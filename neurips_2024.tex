@@ -1,0 +1,1053 @@
+\documentclass{article}
+
+% if you need to pass options to natbib, use, e.g.:
+%     \PassOptionsToPackage{numbers, compress}{natbib}
+% before loading neurips_2024
+
+
+% ready for submission
+%\usepackage{neurips_2024}
+
+
+% to compile a preprint version, e.g., for submission to arXiv, add add the
+% [preprint] option:
+\usepackage[preprint]{neurips_2024}
+
+
+% to compile a camera-ready version, add the [final] option, e.g.:
+%     \usepackage[final]{neurips_2024}
+
+
+% to avoid loading the natbib package, add option nonatbib:
+%    \usepackage[nonatbib]{neurips_2024}
+
+
+\usepackage[utf8]{inputenc} % allow utf-8 input
+\usepackage[T1]{fontenc}    % use 8-bit T1 fonts
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{graphicx}       % for including graphics
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{xcolor}         % colors
+
+
+\title{CSE 151B Project Milestone Report}
+
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to LaTeX to determine where to break the
+% lines. Using \AND forces a line break at that point. So, if LaTeX puts 3 of 4
+% authors names on the first line, and the last on the second line, try using
+% \AND instead of \And before the third author name.
+
+
+\author{%
+  Xinheng Wang\thanks{Use footnote for providing further information
+    about author (webpage, alternative address)---\emph{not} for acknowledging
+    funding agencies.} \\
+    University of California, San Diego\\
+  9500 Gilman Dr. La Jolla, CA 92093\\
+  \texttt{xiw170@ucsd.edu} \\
+  % examples of more authors
+  % \And
+  % Coauthor \\
+  % Affiliation \\
+  % Address \\
+  % \texttt{email} \\
+  % \AND
+  % Coauthor \\
+  % Affiliation \\
+  % Address \\
+  % \texttt{email} \\
+  % \And
+  % Coauthor \\
+  % Affiliation \\
+  % Address \\
+  % \texttt{email} \\
+  % \And
+  % Coauthor \\
+  % Affiliation \\
+  % Address \\
+  % \texttt{email} \\
+}
+
+
+\begin{document}
+
+
+\maketitle
+
+
+\section{Task Description and Exploratory Analysis}
+
+\subsection{Problem A: Task Description, Inputs/Outputs, and Objective}
+
+\subsection{Task Description and Importance}
+
+The core task of this project is to develop a machine learning model capable of emulating the behavior of complex and computationally intensive physics-based climate models. Specifically, the goal is to predict future monthly global climate variables, namely surface air temperature (\texttt{tas}) and precipitation (\texttt{pr}), under various greenhouse gas emission scenarios, known as Shared Socioeconomic Pathways (SSPs). The model is expected to learn from historical and simulated data from a set of SSPs and then accurately predict these variables for a different, previously unseen SSP. A significant challenge in this task is to ensure that the model captures not only the average climate conditions but also the intricate spatial patterns across the globe and the temporal variability (i.e., how climate fluctuates over time at different locations).
+
+The importance of this task stems from the limitations of traditional physics-based climate models. While these models are the current standard for projecting future climate, their execution demands substantial computational resources and time. This high cost makes it challenging to explore a wide array of future scenarios or to rapidly evaluate the potential impacts of different policy decisions. Machine learning emulators present a promising alternative by learning the underlying physical relationships directly from existing climate model data. If successful, these emulators could dramatically reduce computational overhead, thereby enabling faster climate projections, more extensive scenario analyses, and more agile responses to the challenges posed by climate change. This acceleration is crucial for informing effective policy-making, developing adaptation strategies, and enhancing our overall understanding of the Earth's complex climate system.
+
+\subsection{Input and Output Definitions}
+
+Let:
+\begin{itemize}
+    \item \(H\) be the number of latitude points (e.g., 48).
+    \item \(W\) be the number of longitude points (e.g., 72).
+    \item \(N_{in}\) be the number of input climate forcing variables (e.g., 5: CO2, SO2, CH4, BC, rsdt).
+    \item \(N_{out}\) be the number of output climate variables to predict (e.g., 2: tas, pr).
+\end{itemize}
+
+\paragraph{Input (X)}
+For a single time step \(t\) (representing a specific month), the input to the model, denoted as \(X_t\), is a multi-channel 2D spatial map. It can be represented as a tensor:
+\[ X_t \in \mathbb{R}^{N_{in} \times H \times W} \]
+Each channel \(c\) from \(1\) to \(N_{in}\) (e.g., \(X_t[c, :, :]\)) corresponds to one of the input variables (like CO2 concentration or incoming solar radiation) at that specific time \(t\) across all latitude and longitude points. Some input variables (like global mean CO2) are originally non-spatial but are broadcasted to match the \(H \times W\) spatial grid.
+
+\paragraph{Output ($Y_{true}$ and $Y_{pred}$)}
+Similarly, for a single time step \(t\), the true climate state we want to predict, denoted \(Y_{true,t}\), is also a multi-channel 2D spatial map:
+\[ Y_{true,t} \in \mathbb{R}^{N_{out} \times H \times W} \]
+Each channel \(k\) from \(1\) to \(N_{out}\) (e.g., \(Y_{true,t}[k, :, :]\)) corresponds to one of the target output variables (temperature or precipitation) at time \(t\).
+
+The model, parameterized by \(\theta\) (representing its learnable weights), is a function \(f_\theta\) that takes \(X_t\) as input and produces a prediction \(Y_{pred,t}\):
+\[ Y_{pred,t} = f_\theta(X_t) \]
+where \( Y_{pred,t} \) has the same dimensions as \( Y_{true,t} \):
+\[ Y_{pred,t} \in \mathbb{R}^{N_{out} \times H \times W} \]
+
+\subsection{Objective Function (Training Loss)}
+
+The starter code employs the Mean Squared Error (MSE) loss as the objective function during the training phase. For a single input-output pair \((X_t, Y_{true,t})\), the MSE loss \(L_t\) is computed as the average of the squared differences between the predicted values and the true values, aggregated across all output variables and all spatial grid points.
+
+Let \( y_{pred,t,k,h,w} \) be the model's predicted value for output variable \(k\) at latitude index \(h\) and longitude index \(w\) for time step \(t\).
+Let \( y_{true,t,k,h,w} \) be the corresponding true value.
+
+The MSE loss for this single sample is defined as:
+\[ L_t(\theta) = \frac{1}{N_{out} \cdot H \cdot W} \sum_{k=1}^{N_{out}} \sum_{h=1}^{H} \sum_{w=1}^{W} (y_{pred,t,k,h,w} - y_{true,t,k,h,w})^2 \]
+During training, the model processes data in batches. If a batch consists of \(B\) samples, the batch loss \( L_{batch} \) is typically the average of the individual sample losses:
+\[ L_{batch}(\theta) = \frac{1}{B} \sum_{i=1}^{B} L_{t_i}(\theta) \]
+The primary training objective is to identify the model parameters \(\theta\) that minimize this MSE loss over the entire training dataset. While MSE serves as the direct training objective, the ultimate aim is to achieve high performance on the competition's specific evaluation metrics, which include Monthly Area-Weighted RMSE, Decadal Mean Area-Weighted RMSE, and Decadal Standard Deviation Area-Weighted MAE. These metrics are more tailored to the climate emulation task and incorporate factors such as area weighting for more accurate global assessment.
+
+The final score is a weighted combination of these three metrics, applied to both \texttt{tas} and \texttt{pr}. The weights emphasize accurate prediction of both the mean state and variability, crucial for actionable climate projections.
+
+\subsection{Problem B: Data Exploration}
+
+This section details the exploration of the climate model output dataset provided for the competition, based on the execution of the starter Jupyter notebook. The dataset is in `.zarr` format and contains monthly climate variables from CMIP6 simulations under different Shared Socioeconomic Pathways (SSPs).
+
+\subsection{Data Size and Dimensions}
+
+The dataset is loaded and processed by the `ClimateDataModule` class in the notebook.
+\begin{itemize}
+    \item \textbf{Train Data Size}: The training dataset, after processing and splitting as defined in `ClimateDataModule.setup()`, consists of 2943 samples. Each sample represents a specific month from the SSP scenarios designated for training (namely \texttt{ssp126}, \texttt{ssp585}, and \texttt{ssp370} excluding its last 10 years, which are used for validation). This number was observed from the print statement \texttt{Creating dataset with \{self.size\} samples...} within the `ClimateDataset` class when initializing the training set.
+    \item \textbf{Test Data Size}: The test dataset, intended for final evaluation, consists of 120 samples. These samples are the last 10 years (120 months) of the \texttt{ssp245} scenario, which is held out and unseen during training. This was also observed from the \texttt{Creating dataset with ...} printout.
+    \item \textbf{Spatial Dimensions}: The data has two primary spatial dimensions: latitude and longitude. As detailed in the comments within the `ClimateDataModule` and inferred from the data loading process (e.g., \verb|da_var = da_var.rename({"latitude": "y", "longitude": "x"})|), the spatial grid is 48 latitude points by 72 longitude points. The input and output tensors for the model thus have a shape corresponding to (Channels, Latitude, Longitude), specifically (Input Channels, 48, 72) for inputs and (Output Channels, 48, 72) for outputs, per batch.
+\end{itemize}
+
+\subsection{Distribution of Target Variables (Surface Temperature - \texttt{tas}, Precipitation - \texttt{pr})}
+
+The starter notebook's `ClimateDataModule` preprocesses the target variables by Z-score normalization. The mean and standard deviation for this normalization are computed exclusively from the training portion of the data.
+\begin{itemize}
+    \item In the `ClimateDataModule.setup()` method, statistics for the output variables (\texttt{tas} and \texttt{pr}) are calculated as follows:
+    \begin{verbatim}
+self.normalizer.set_output_statistics(
+    mean=da.nanmean(train_output, axis=(0, 2, 3), keepdims=True).compute(),
+    std=da.nanstd(train_output, axis=(0, 2, 3), keepdims=True).compute(),
+)
+    \end{verbatim}
+    This means that for each target variable, a single mean and standard deviation value is computed by averaging over all training samples (time dimension) and all spatial grid points (latitude and longitude dimensions). These statistics represent the overall central tendency and spread of \texttt{tas} and \texttt{pr} in their original units (typically Kelvin for temperature and a rate like mm/day for precipitation) across the training scenarios.
+    \item While the notebook does not explicitly plot the histograms or detailed spatial distributions of the raw target variables, these calculated means and standard deviations are essential for understanding their typical values and variability before they are fed into the model. For a more detailed analysis, one could plot histograms of \texttt{tas} and \texttt{pr} from \texttt{train\_output} before normalization, or create spatial maps of their mean values.
+    \item The validation metrics reported during training (e.g., \texttt{[VAL] tas: RMSE=10.8089...}, \texttt{[VAL] pr: RMSE=3.4607...}) are error metrics on the denormalized predictions, giving an indirect sense of the magnitude and variability of these variables.
+\end{itemize}
+
+\subsection{Distribution of Input Variables}
+
+The input data consists of five variables: \texttt{CO2}, \texttt{SO2}, \texttt{CH4}, \texttt{BC}, and \texttt{rsdt}.
+
+\paragraph{Example Input Variable 1 (e.g., CO2)}
+The CO2 variable represents the atmospheric carbon dioxide concentration. In this dataset, CO2 is treated as a global mean value for each time step. This means it does not have inherent spatial variability across the latitude (\(H\)) and longitude (\(W\)) grid in the raw input files for a given month and SSP. Instead, this single global value is broadcast across the \(H \times W\) spatial grid to match the dimensions of other spatial input variables during the data loading process. CO2 concentrations generally exhibit a clear upward trend over time, with the rate and magnitude of this increase varying significantly depending on the Shared Socioeconomic Pathway (SSP). For instance, high-emission scenarios like \texttt{ssp585} show rapid and sustained increases, whereas lower-emission scenarios like \texttt{ssp126} project a peak followed by a decline in CO2 concentrations. For the purpose of model training, Z-score normalization is applied using statistics derived solely from the training dataset. The mean CO2 value used for this normalization was 3577.0290 (typically in ppmv - parts per million by volume), and the standard deviation was 1806.3766 (typically in ppmv).
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=0.8\textwidth]{cse151B_firgure1.jpg} 
+  % \fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{8cm}{0cm}} % Placeholder removed
+  \caption{Time series of CO2 concentrations for training SSP scenarios: ssp126 (blue), ssp370 (orange), and ssp585 (green).}
+  \label{fig:co2_visualization}
+\end{figure}
+
+\paragraph{Example Input Variable 2 (e.g., rsdt - Downwelling Shortwave Radiation)}
+The \texttt{rsdt} variable represents the Top of Atmosphere (TOA) incident shortwave radiation, which is the amount of solar energy reaching the top of the Earth's atmosphere. Unlike globally averaged variables like CO2 (in its raw form for this dataset), \texttt{rsdt} inherently possesses significant spatial variability due to factors like latitude (more radiation at the tropics, less at the poles) and time of year (seasonal cycles). It also has strong temporal variations, including a diurnal cycle (though monthly means are used here) and seasonal patterns. Higher values indicate more incoming solar energy. This variable is crucial as it's a primary driver of the Earth's energy balance. For model training, \texttt{rsdt} is normalized using Z-score statistics derived from the training data. The mean \texttt{rsdt} across the training set was \(297.6550\) W/m² (Watts per square meter), and the standard deviation was \(164.0920\) W/m².
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=0.7\textwidth]{cse151B_figure2.jpg} % Replace with your actual figure
+  %\fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{8cm}{0cm}} % Placeholder for figure
+  \caption{Spatial map of time-averaged Top of Atmosphere (TOA) incident shortwave radiation ({rsdt}) across all training SSPs and all training months. Units are W/m², as indicated by the color bar. The strong latitudinal gradient is clearly visible, with highest values at the equator and lowest at the poles.}
+  \label{fig:rsdt_visualization}
+\end{figure}
+
+\subsection{Distribution Changes with SSP Scenario and Year}
+
+\paragraph{Changes with SSP Scenario}
+The distributions of key climate variables inherently differ across the Shared Socioeconomic Pathways (SSPs) because SSPs define distinct future trajectories of anthropogenic emissions, land use, and other climate forcings.
+Input variables such as CO2 and CH4 concentrations are primary defining characteristics of the SSPs. For example, a high-emission scenario like \texttt{ssp585} (used in training) is characterized by continued high greenhouse gas emissions, leading to rapidly increasing atmospheric CO2 concentrations. In contrast, \texttt{ssp126} (also a training scenario) represents a low-emission, sustainability-focused pathway where CO2 emissions peak and decline, aiming to limit warming. The \texttt{ssp370} scenario, used for both training and validation (excluding its last 10 years for training), typically represents a medium-to-high emissions pathway with significant regional rivalry and challenges to mitigation.
+The Top of Atmosphere (TOA) incident shortwave radiation (\texttt{rsdt}) is primarily governed by solar cycles and Earth's orbital parameters, so its fundamental patterns are not directly driven by SSPs. However, SSP-specific aerosol concentrations (like SO2 and BC, though their training statistics were zero in this dataset, indicating they might be constant or not explicitly varied in the provided training data subset) can modulate the amount of radiation reaching different atmospheric levels and the surface, indirectly linking \texttt{rsdt} variability at the surface (if that were the variable) to SSPs.
+Consequently, the output variables, surface air temperature (\texttt{tas}) and precipitation (\texttt{pr}), exhibit significant variations in their distributions depending on the SSP. Higher emission SSPs generally result in more pronounced increases in global mean \texttt{tas} and larger, often more uncertain, alterations in regional \texttt{pr} patterns compared to lower emission scenarios. The model must learn to capture these scenario-dependent responses.
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=0.9\textwidth]{cse151B_figure3.jpg} % Replace with your actual figure
+  %\fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{10cm}{0cm}} % Placeholder for figure
+  \caption{Comparison of CH4 across different SSP scenarios over time.}
+  \label{fig:ssp_comparison}
+\end{figure}
+
+\paragraph{Changes with Year (Trends)}
+Temporal trends and cycles are critical aspects of the climate data.
+For input variables like CO2 and CH4, there are clear increasing trends over the simulated years (e.g., 2015-2100) within most SSPs, particularly for the higher emission pathways. These trends reflect the ongoing accumulation of greenhouse gases in the atmosphere. Some scenarios, like \texttt{ssp126}, may show these concentrations stabilizing or declining in the later decades of the 21st century. The TOA incident shortwave radiation (\texttt{rsdt}), while not having a long-term anthropogenic trend, exhibits strong and predictable seasonal cycles due to Earth's axial tilt and orbit, as well as some inter-annual variability from solar activity cycles.
+The output variable \texttt{tas} shows a general warming trend over the years in response to increased greenhouse gas forcing, with the magnitude of this trend being scenario-dependent. Superimposed on this long-term trend are inter-annual variability (e.g., El Niño-Southern Oscillation effects, though not explicitly resolved by all climate models or emulators) and pronounced seasonal cycles.
+Precipitation (\texttt{pr}) trends are spatially more complex and heterogeneous. While global mean precipitation might increase slightly in a warmer world, regional trends can vary significantly, with some areas projected to become wetter and others drier. Seasonal cycles are also a dominant feature of precipitation patterns. The machine learning model must learn these temporal evolutions and cyclical patterns to make accurate future predictions, especially as the test data (last 10 years of \texttt{ssp245}) represents a future period.
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=0.7\textwidth]{cse151B_figure4.jpg} % Replace with your actual figure
+  %\fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{8cm}{0cm}} % Placeholder for figure
+  \caption{Temporal trend of global mean 'tas' over the available years in more SSP scenarios.}
+  \label{fig:temporal_trend}
+\end{figure}
+
+\subsection{Additional Exploratory Analysis (Bonus)}
+
+\paragraph{Correlation Analysis}
+Understanding the relationships between different variables can provide valuable insights for model development and feature selection. Correlation analysis helps quantify the degree to which variables vary together. Numerical results from such analyses (e.g., Pearson correlation coefficients) should be interpreted in the context of the underlying physical processes and the specific data preprocessing steps undertaken (like normalization and aggregation methods if any).
+
+\subparagraph{Correlations Between Input and Output Variables:}
+Correlations between input forcing variables and output climate variables are expected and form the physical basis of the climate emulation task. These are typically assessed after appropriate spatial and temporal aggregation (e.g., global means, regional averages, or per-grid-cell time series).
+\begin{itemize}
+    \item \textbf{Temperature (\texttt{tas}):} A positive correlation is generally anticipated between key greenhouse gas concentrations (like \texttt{CO2} and \texttt{CH4}) and surface air temperature (\texttt{tas}), as these gases contribute to radiative forcing and warming. Similarly, variations in Top of Atmosphere (TOA) incident shortwave radiation (\texttt{rsdt}) should generally correlate positively with temperature, as it represents the primary incoming energy to the climate system.
+    % User to add specific findings: e.g., "Global mean CO2 from the training data showed a strong positive correlation with global mean \texttt{tas} (Pearson r = Y.YY)." or "On a regional basis, correlations between local \texttt{rsdt} and \texttt{tas} were analyzed..."
+
+    \item \textbf{Precipitation (\texttt{pr}):} The relationship between input variables and precipitation (\texttt{pr}) is often more complex and exhibits greater spatial heterogeneity. While increased global temperatures (driven by inputs like CO2) might lead to an intensification of the hydrological cycle and potentially increased global mean precipitation, regional responses can vary significantly, with some areas experiencing increases and others decreases or changes in extremes.
+    % User to add specific findings: e.g., "Correlations between global mean CO2 and regional precipitation anomalies were explored. For instance, region A showed a weak positive correlation (r=Z.ZZ) while region B showed a negligible correlation."
+\end{itemize}
+Visualizing these correlations, for instance, through a correlation matrix, can be highly instructive for understanding these first-order relationships. Such visualizations would typically be generated in the accompanying Jupyter Notebook.
+
+% User can add further paragraphs here for other bonus analysis points, such as:
+% \paragraph{Analysis of Spatial Patterns of Variability}
+% [Text describing where temperature or precipitation is most variable, e.g., poles vs tropics, land vs ocean, and how this might be seen from standard deviation maps.]
+
+% \paragraph{Examination of Extreme Values or Outliers}
+% [Text discussing if any extreme values were noted in the input or output data during preprocessing or visualization, and how they were handled or interpreted.]
+
+% \paragraph{Deeper Dive into Seasonal Cycles or Inter-annual Variability}
+% [Text describing prominent seasonal cycles in variables like 	exttt{tas}, 	exttt{pr}, or 	exttt{rsdt} and any observed inter-annual variability beyond simple trends.]
+
+\begin{figure}[h!]
+  \centering
+  \includegraphics[width=0.7\textwidth]{cse151B_figure5.jpg} % Replace with your actual figure
+  %\fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{8cm}{0cm}} % Placeholder for figure
+  \caption{correlation matrix}
+  \label{fig:bonus_analysis}
+\end{figure}
+
+%\begin{abstract}
+%  The abstract paragraph should be indented \nicefrac{1}{2}~inch (3~picas) on
+ % both the left- and right-hand margins. Use 10~point type, with a vertical
+  %spacing (leading) of 11~points.  The word \textbf{Abstract} must be centered,
+  %bold, and in point size 12. Two line spaces precede the abstract. The abstract
+  %must be limited to one paragraph.
+%\end{abstract}
+
+\section{Deep Learning Model and Experiment Design}
+
+\subsection{Problem A: Training and Validation Pipeline Setup}
+
+The training and validation pipeline was set up based on the provided starter code for the CSE151B Spring 2025 Climate Emulation Competition. The structure leverages PyTorch Lightning for organizing the data loading, model training, and validation processes. No significant structural changes were made to the core data loading logic (which includes Z-score normalization of inputs and outputs based on training set statistics), input/output variable definitions, or the objective function (Mean Squared Error).
+
+The pipeline can be summarized as follows:
+\begin{enumerate}
+    \item \textbf{Data Loading and Preprocessing (\texttt{ClimateDataModule}):}
+    \begin{itemize}
+        \item The \texttt{ClimateDataModule} handles loading data from the \texttt{.zarr} dataset.
+        \item It selects specified input variables (\texttt{CO2}, \texttt{SO2}, \texttt{CH4}, \texttt{BC}, \texttt{rsdt}) and output variables (\texttt{tas}, \texttt{pr}).
+        \item Non-spatial input variables (like \texttt{CO2}, \texttt{CH4}) are broadcast to match the spatial grid dimensions (48x72).
+        \item \textbf{Normalization:} Z-score normalization is applied to both input and output variables. The mean and standard deviation for this normalization are computed \emph{only} from the designated training SSPs (\texttt{ssp126}, \texttt{ssp370}, \texttt{ssp585}, excluding the validation split of \texttt{ssp370}).
+        \item \textbf{Data Splitting:}
+        \begin{itemize}
+            \item \textbf{Training set:} Consists of data from \texttt{ssp126}, \texttt{ssp585}, and \texttt{ssp370} (excluding the last 120 months of \texttt{ssp370}).
+            \item \textbf{Validation set:} Consists of the last 120 months (10 years) of \texttt{ssp370}.
+            \item \textbf{Test set:} Consists of the last 120 months of \texttt{ssp245}.
+        \end{itemize}
+        \item PyTorch \texttt{DataLoader}s are created for batching.
+    \end{itemize}
+    \item \textbf{Model Definition (\texttt{SimpleCNN}):} The baseline \texttt{SimpleCNN} model provided in the starter code was used.
+    \item \textbf{Training Process (\texttt{ClimateEmulationModule} and PyTorch Lightning \texttt{Trainer}):}
+    \begin{itemize}
+        \item The \texttt{ClimateEmulationModule} wraps the \texttt{SimpleCNN} model.
+        \item \textbf{Objective Function:} Mean Squared Error (MSE) loss.
+        \item The PyTorch Lightning \texttt{Trainer} manages the training loop.
+    \end{itemize}
+\end{enumerate}
+
+Specific configuration and choices:
+\begin{itemize}
+    \item \textbf{What computational platform or GPU did you use for training/validation?}
+    \begin{itemize}
+        \item Training and validation were performed on a machine with an Apple MPS compatible GPU. PyTorch Lightning was configured with \texttt{accelerator="auto"} and \texttt{devices="auto"}, which successfully utilized the MPS device.
+    \end{itemize}
+    \item \textbf{What optimizer did you use? How did you tune the learning rate, weight decay, and other parameters?}
+    \begin{itemize}
+        \item \textbf{Optimizer:} The Adam optimizer (\texttt{torch.optim.Adam}) was used.
+        \item \textbf{Learning Rate:} The learning rate was set to \texttt{1e-3} as per the initial \texttt{config["training"]["lr"]}.
+        \item \textbf{Parameter Tuning:} For this initial run, the learning rate and other optimizer parameters were used as provided in the starter notebook's configuration. No explicit hyperparameter tuning was performed.
+    \end{itemize}
+    \item \textbf{How many epochs did you train for? What batch size did you use? How long does a single epoch take?}
+    \begin{itemize}
+        \item \textbf{Epochs:} The model was trained for \texttt{10} epochs (\texttt{config["trainer"]["max\_epochs"]}).
+        \item \textbf{Batch Size:} A batch size of \texttt{64} was used (\texttt{config["data"]["batch\_size"]}).
+        \item \textbf{Num Workers for DataLoader:} \texttt{num\_workers} was set to \texttt{0} to resolve a \texttt{DataLoader} worker error on macOS.
+        \item \textbf{Epoch Duration:} The duration for a single epoch was not explicitly timed during this baseline run, but training proceeded at a reasonable pace on the MPS GPU. %(User should replace with actual time if known, e.g., "A single training epoch took approximately X minutes.")
+    \end{itemize}
+\end{itemize}
+
+\textbf{Explain your design choices --- were they based on prior experience, platform limitations, or model performance?}
+
+The design choices for this initial phase were primarily based on:
+\begin{itemize}
+    \item \textbf{Leveraging Provided Starter Code:} To quickly get a baseline model running.
+    \item \textbf{Platform Limitations/Stability:} The adjustment of \texttt{num\_workers} to \texttt{0} was a direct response to a runtime error, prioritizing stability.
+    \item \textbf{Competition Requirements:} Adherence to data splits, SSP usage, and test duration.
+    \item \textbf{Baseline Performance:} The goal was to establish a baseline with the provided setup.
+\end{itemize}
+
+\subsection{Problem B: Model Description}
+
+For the initial experiments, the baseline model provided in the starter notebook, \texttt{SimpleCNN}, was utilized. This model serves as a foundational architecture for the task of emulating the spatio-temporal dynamics of climate variables.
+
+\subsubsection{SimpleCNN Architecture}
+The \texttt{SimpleCNN} is a Convolutional Neural Network (CNN) that incorporates residual connections to facilitate the training of a deeper network.
+
+\begin{itemize}
+    \item \textbf{Input:} The model accepts an input tensor of shape (Batch Size \(B\), \(N_{in}\), \(H\), \(W\)), where \(N_{in}=5\) is the number of input channels (CO2, SO2, CH4, BC, rsdt), \(H=48\) is the height (latitude), and \(W=72\) is the width (longitude).
+    \item \textbf{Output:} The model produces an output tensor of shape (Batch Size \(B\), \(N_{out}\), \(H\), \(W\)), where \(N_{out}=2\) is the number of output channels (tas, pr).
+    \item \textbf{Initial Convolutional Layer (\texttt{self.initial}):} The input is first processed by a convolutional layer (kernel size 3x3, padding to preserve dimensions) followed by Batch Normalization and a ReLU activation function. This layer maps the input channels to an initial hidden dimension (e.g., 64).
+    \item \textbf{Residual Blocks (\texttt{self.res\_blocks} using \texttt{ResidualBlock} class):} The core of the network consists of a series of residual blocks (e.g., \texttt{depth=4}). Each \texttt{ResidualBlock} contains two convolutional layers (3x3 kernels, padding), each followed by Batch Normalization and ReLU. A skip connection adds the input of the block to the output of its second convolutional layer (after BatchNorm but before the final ReLU of the block). If the number of channels changes or striding were used, the skip connection would also include a 1x1 convolution to match dimensions. The number of feature maps can double in intermediate residual blocks.
+    The residual mechanism is based on the principle \( \mathbf{Y} = \mathcal{F}(\mathbf{X}, \{W_i\}) + \mathbf{X} \), where \( \mathcal{F} \) is the learned residual mapping and \( \mathbf{X} \) is the input to the block.
+    \item \textbf{Dropout Layer (\texttt{self.dropout}):} A 2D dropout layer (e.g., rate 0.1 or 0.2) is applied after the residual blocks for regularization, helping to prevent overfitting.
+    \item \textbf{Final Convolutional Layers (\texttt{self.final}):} The features from the dropout layer are passed through two more convolutional layers. The first reduces the channel dimension (e.g., to \texttt{current\_dim // 2}) with a 3x3 kernel, BatchNorm, and ReLU. The very last layer is a 1x1 convolution that maps the features to the required number of output channels (\(N_{out}=2\)) for \texttt{tas} and \texttt{pr}.
+\end{itemize}
+
+The general flow of data through the model is:
+Input \(\rightarrow\) InitialConv \(\rightarrow\) N x ResidualBlock \(\rightarrow\) Dropout \(\rightarrow\) FinalConv (two stages) \(\rightarrow\) Output.
+
+\subsubsection{Rationale for SimpleCNN as a Baseline}
+\begin{itemize}
+    \item It was the recommended and provided baseline model in the competition's starter materials, facilitating a common starting point.
+    \item CNNs, with their convolutional filters, are inherently well-suited for learning spatial patterns and hierarchies from gridded data, which is the format of the climate variables.
+    \item The inclusion of residual connections allows for the construction of a relatively deep network that can learn complex features without suffering excessively from vanishing gradients, a common issue in training deep plain networks.
+    \item It provides a reasonable trade-off between model complexity and performance for a baseline system.
+\end{itemize}
+
+\subsubsection{Future Model Considerations}
+While only the \texttt{SimpleCNN} has been implemented and tested thus far, future work could explore:
+\begin{itemize}
+    \item \textbf{U-Net Architectures:} To better capture multi-scale spatial features and potentially improve prediction of fine-grained spatial details by incorporating skip connections between downsampling and upsampling paths.
+    \item \textbf{Recurrent Components:} Integrating layers like ConvLSTM or other recurrent units could help the model better learn and represent temporal dependencies that extend beyond what a purely feed-forward CNN might capture from single-timestep inputs.
+    \item \textbf{Transformer-based Models:} Vision Transformers or spatio-temporal Transformers could be explored for their ability to capture long-range dependencies in both space and time, though they might require more data or careful regularization.
+\end{itemize}
+However, for the current stage, all experiments and results are based on the \texttt{SimpleCNN} architecture.
+
+\section{Experiment Results and Future Work}
+
+\subsection{Problem A: Initial Model Performance and Analysis}
+
+\subsubsection{Training and Validation Loss Visualization}
+% Placeholder for description of loss curves.
+% Figure for loss curves will be added here.
+The training and validation loss curves are presented in Figure \\ref{fig:loss_curves}.
+The training loss (MSE) shows a consistent downward trend over the 10 epochs, indicating that the model is learning from the training data. The validation loss also decreases, though it may show some fluctuations or start to plateau, which is typical.
+
+\begin{figure}[h!]
+  \centering
+  % \includegraphics[width=0.8\textwidth]{path/to/loss_curves.png} % Replace with actual path
+  \fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{8cm}{0cm}} % Placeholder
+  \caption{Training and Validation loss (MSE) over training steps/epochs. (User to generate and insert)}
+  \label{fig:loss_curves}
+\end{figure}
+
+\subsubsection{High-Error Sample Visualization}
+% Placeholder for description of high-error samples.
+% Figures for high-error samples will be added here.
+We selected three training samples that exhibited the highest Mean Squared Error after training the model. Visualizing their spatial patterns (true vs. predicted vs. difference) can help identify systematic issues. Figure \\ref{fig:high_error_sample1}, \\ref{fig:high_error_sample2}, and \\ref{fig:high_error_sample3} show these samples.
+Common patterns in high-loss samples might include [User to describe observations, e.g., difficulties with extreme values, coastal regions, specific seasons, or one variable over another].
+
+\begin{figure}[h!]
+  \centering
+  % \includegraphics[width=\textwidth]{path/to/high_error_sample1.png} % Replace with actual path
+  \fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{12cm}{0cm}} % Placeholder
+  \caption{Visualization of a high-error training sample 1 (tas/pr): True (left), Predicted (center), Difference (right). (User to generate and insert)}
+  \label{fig:high_error_sample1}
+\end{figure}
+
+\begin{figure}[h!]
+  \centering
+  % \includegraphics[width=\textwidth]{path/to/high_error_sample2.png} % Replace with actual path
+  \fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{12cm}{0cm}} % Placeholder
+  \caption{Visualization of a high-error training sample 2 (tas/pr): True (left), Predicted (center), Difference (right). (User to generate and insert)}
+  \label{fig:high_error_sample2}
+\end{figure}
+
+\begin{figure}[h!]
+  \centering
+  % \includegraphics[width=\textwidth]{path/to/high_error_sample3.png} % Replace with actual path
+  \fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{12cm}{0cm}} % Placeholder
+  \caption{Visualization of a high-error training sample 3 (tas/pr): True (left), Predicted (center), Difference (right). (User to generate and insert)}
+  \label{fig:high_error_sample3}
+\end{figure}
+
+\subsubsection{Performance Scores}
+The performance of the baseline SimpleCNN model after 10 epochs is as follows:
+
+\paragraph{Validation Scores (Epoch 10):}
+\begin{itemize}
+    \item Surface Air Temperature (\texttt{tas}):
+    \begin{itemize}
+        \item Monthly Area-Weighted RMSE: 4.4833
+        \item Decadal Mean Area-Weighted RMSE: 3.2375
+        \item Decadal Standard Deviation Area-Weighted MAE: 0.9360
+    \end{itemize}
+    \item Precipitation (\texttt{pr}):
+    \begin{itemize}
+        \item Monthly Area-Weighted RMSE: 2.6779
+        \item Decadal Mean Area-Weighted RMSE: 0.7214
+        \item Decadal Standard Deviation Area-Weighted MAE: 1.3454
+    \end{itemize}
+\end{itemize}
+
+\paragraph{Local Test Scores (Proxy for Public Leaderboard):}
+These scores are from the local test run using the provided \texttt{ssp245} data, which the notebook mentions may have corrupted targets. The actual public leaderboard score would be obtained after submitting the generated \texttt{kaggle\_submission.csv} file.
+\begin{itemize}
+    \item Surface Air Temperature (\texttt{tas}):
+    \begin{itemize}
+        \item Monthly Area-Weighted RMSE: 290.5049
+        \item Decadal Mean Area-Weighted RMSE: 290.4743
+        \item Decadal Standard Deviation Area-Weighted MAE: 3.1968
+    \end{itemize}
+    \item Precipitation (\texttt{pr}):
+    \begin{itemize}
+        \item Monthly Area-Weighted RMSE: 3.9592
+        \item Decadal Mean Area-Weighted RMSE: 3.7946
+        \item Decadal Standard Deviation Area-Weighted MAE: 0.8904
+    \end{itemize}
+\end{itemize}
+
+\subsection{Problem B: Design Iteration Reflection and Future Plans}
+
+\subsubsection{Summary of Current Design Iteration}
+This initial experiment utilized the baseline \texttt{SimpleCNN} architecture provided in the starter notebook, trained for 10 epochs with the Adam optimizer (learning rate 1e-3) and a batch size of 64. The data loading and preprocessing (including Z-score normalization and SSP splits) were also adopted from the starter code. The primary modification made during setup was setting `num_workers=0` in the DataLoader to ensure stability on the local macOS MPS environment.
+
+\subsubsection{Reflection on What Worked and What Didn't}
+\paragraph{What Worked Well:}
+\begin{itemize}
+    \item The pipeline successfully ran end-to-end: data loading, model training, validation, testing, and submission file generation.
+    \item The model demonstrated learning, as evidenced by the decreasing training loss.
+    \item Validation metrics for both \texttt{tas} and \texttt{pr} also showed improvement over epochs, indicating some generalization.
+    \item The change to `num_workers=0` resolved a critical `DataLoader` runtime error.
+\end{itemize}
+
+\paragraph{What Didn't Work Well / Areas for Improvement:}
+\begin{itemize}
+    \item The local test RMSE for \texttt{tas} (290.5049) is extremely high. This is likely influenced by the noted corruption in the public \texttt{ssp245} test targets. However, it also suggests potential issues with generalization to the \texttt{ssp245} scenario or that the model is not yet robust enough.
+    \item The model was trained for only 10 epochs, which might be insufficient for optimal performance.
+    \item No hyperparameter tuning (e.g., learning rate, model depth, dropout rate) was performed.
+    \item The \texttt{SimpleCNN} is a basic model; more advanced architectures might capture complex climate dynamics better.
+\end{itemize}
+
+\subsubsection{Planned Next Steps for Improvement}
+\begin{itemize}
+    \item \textbf{Extended Training and Hyperparameter Tuning:} Train for more epochs and systematically tune hyperparameters (learning rate, weight decay, optimizer parameters, batch size). Explore learning rate schedulers.
+    \item \textbf{Advanced Model Architectures:}
+    \begin{itemize}
+        \item Implement and evaluate U-Net style architectures, as suggested in the project's scope, to better capture multi-scale spatial features.
+        \item Consider architectures incorporating temporal awareness, such as Convolutional LSTMs (ConvLSTMs) or attention mechanisms, if single-timestep predictions prove insufficient.
+    \end{itemize}
+    \item \textbf{Data Augmentation (if applicable):} Investigate if any meaningful data augmentation techniques can be applied to climate data (e.g., small random shifts if physically plausible, or leveraging more ensemble members if available and distinct).
+    \item \textbf{Regularization:} Experiment with different dropout rates or other regularization techniques (e.g., weight decay) if overfitting is observed with more complex models or longer training.
+    \item \textbf{Loss Function Exploration:} While MSE is a standard choice, explore if alternative loss functions or a combination (e.g., weighting errors for specific variables or regions differently, or incorporating terms that penalize divergence in spatial gradients) could be beneficial, particularly for precipitation.
+    \item \textbf{In-depth Error Analysis:} Further analyze the spatial and temporal patterns of errors on the validation set to guide model improvements.
+    \item \textbf{Verify Test Set Score:} Focus on improving validation scores and rely on the official Kaggle leaderboard for the true measure of test performance, given the local test set issues.
+\end{itemize}
+
+\section{Submission of papers to NeurIPS 2024}
+
+Please read the instructions below carefully and follow them faithfully.
+
+\subsection{Style}
+
+Papers to be submitted to NeurIPS 2024 must be prepared according to the
+instructions presented here. Papers may only be up to {\bf nine} pages long,
+including figures. Additional pages \emph{containing only acknowledgments and
+references} are allowed. Papers that exceed the page limit will not be
+reviewed, or in any other way considered for presentation at the conference.
+
+The margins in 2024 are the same as those in previous years.
+
+Authors are required to use the NeurIPS \LaTeX{} style files obtainable at the
+NeurIPS website as indicated below. Please make sure you use the current files
+and not previous versions. Tweaking the style files may be grounds for
+rejection.
+
+\subsection{Retrieval of style files}
+
+The style files for NeurIPS and other conference information are available on
+the website at
+\begin{center}
+  \url{http://www.neurips.cc/}
+\end{center}
+The file \verb+neurips_2024.pdf+ contains these instructions and illustrates the
+various formatting requirements your NeurIPS paper must satisfy.
+
+The only supported style file for NeurIPS 2024 is \verb+neurips_2024.sty+,
+rewritten for \LaTeXe{}.  \textbf{Previous style files for \LaTeX{} 2.09,
+  Microsoft Word, and RTF are no longer supported!}
+
+The \LaTeX{} style file contains three optional arguments: \verb+final+, which
+creates a camera-ready copy, \verb+preprint+, which creates a preprint for
+submission to, e.g., arXiv, and \verb+nonatbib+, which will not load the
+\verb+natbib+ package for you in case of package clash.
+
+\paragraph{Preprint option}
+If you wish to post a preprint of your work online, e.g., on arXiv, using the
+NeurIPS style, please use the \verb+preprint+ option. This will create a
+nonanonymized version of your work with the text ``Preprint. Work in progress.''
+in the footer. This version may be distributed as you see fit, as long as you do not say which conference it was submitted to. Please \textbf{do
+  not} use the \verb+final+ option, which should \textbf{only} be used for
+papers accepted to NeurIPS.
+
+At submission time, please omit the \verb+final+ and \verb+preprint+
+options. This will anonymize your submission and add line numbers to aid
+review. Please do \emph{not} refer to these line numbers in your paper as they
+will be removed during generation of camera-ready copies.
+
+The file \verb+neurips_2024.tex+ may be used as a ``shell'' for writing your
+paper. All you have to do is replace the author, title, abstract, and text of
+the paper with your own.
+
+The formatting instructions contained in these style files are summarized in
+Sections \ref{gen_inst}, \ref{headings}, and \ref{others} below.
+
+\section{General formatting instructions}
+\label{gen_inst}
+
+The text must be confined within a rectangle 5.5~inches (33~picas) wide and
+9~inches (54~picas) long. The left margin is 1.5~inch (9~picas).  Use 10~point
+type with a vertical spacing (leading) of 11~points.  Times New Roman is the
+preferred typeface throughout, and will be selected for you by default.
+Paragraphs are separated by \nicefrac{1}{2}~line space (5.5 points), with no
+indentation.
+
+The paper title should be 17~point, initial caps/lower case, bold, centered
+between two horizontal rules. The top rule should be 4~points thick and the
+bottom rule should be 1~point thick. Allow \nicefrac{1}{4}~inch space above and
+below the title to rules. All pages should start at 1~inch (6~picas) from the
+top of the page.
+
+For the final version, authors' names are set in boldface, and each name is
+centered above the corresponding address. The lead author's name is to be listed
+first (left-most), and the co-authors' names (if different address) are set to
+follow. If there is only one co-author, list both author and co-author side by
+side.
+
+Please pay special attention to the instructions in Section \ref{others}
+regarding figures, tables, acknowledgments, and references.
+
+\section{Headings: first level}
+\label{headings}
+
+All headings should be lower case (except for first word and proper nouns),
+flush left, and bold.
+
+First-level headings should be in 12-point type.
+
+\subsection{Headings: second level}
+
+Second-level headings should be in 10-point type.
+
+\subsubsection{Headings: third level}
+
+Third-level headings should be in 10-point type.
+
+\paragraph{Paragraphs}
+
+There is also a \verb+\paragraph+ command available, which sets the heading in
+bold, flush left, and inline with the text, with the heading followed by 1\,em
+of space.
+
+\section{Citations, figures, tables, references}
+\label{others}
+
+These instructions apply to everyone.
+
+\subsection{Citations within the text}
+
+The \verb+natbib+ package will be loaded for you by default.  Citations may be
+author/year or numeric, as long as you maintain internal consistency.  As to the
+format of the references themselves, any style is acceptable as long as it is
+used consistently.
+
+The documentation for \verb+natbib+ may be found at
+\begin{center}
+  \url{http://mirrors.ctan.org/macros/latex/contrib/natbib/natnotes.pdf}
+\end{center}
+Of note is the command \verb+\citet+, which produces citations appropriate for
+use in inline text.  For example,
+\begin{verbatim}
+   \citet{hasselmo} investigated\dots
+\end{verbatim}
+produces
+\begin{quote}
+  Hasselmo, et al.\ (1995) investigated\dots
+\end{quote}
+
+If you wish to load the \verb+natbib+ package with options, you may add the
+following before loading the \verb+neurips_2024+ package:
+\begin{verbatim}
+   \PassOptionsToPackage{options}{natbib}
+\end{verbatim}
+
+If \verb+natbib+ clashes with another package you load, you can add the optional
+argument \verb+nonatbib+ when loading the style file:
+\begin{verbatim}
+   \usepackage[nonatbib]{neurips_2024}
+\end{verbatim}
+
+As submission is double blind, refer to your own published work in the third
+person. That is, use ``In the previous work of Jones et al.\ [4],'' not ``In our
+previous work [4].'' If you cite your other papers that are not widely available
+(e.g., a journal paper under review), use anonymous author names in the
+citation, e.g., an author of the form ``A. Anonymous'' and include a copy of the anonymized paper in the supplementary material.
+
+\subsection{Footnotes}
+
+Footnotes should be used sparingly.  If you do require a footnote, indicate
+footnotes with a number\footnote{Sample of the first footnote.} in the
+text. Place the footnotes at the bottom of the page on which they appear.
+Precede the footnote with a horizontal rule of 2~inches (12~picas).
+
+Note that footnotes are properly typeset \emph{after} punctuation
+marks.\footnote{As in this example.}
+
+\subsection{Figures}
+
+\begin{figure}
+  \centering
+  \fbox{\rule[-.5cm]{0cm}{4cm} \rule[-.5cm]{4cm}{0cm}}
+  \caption{Sample figure caption.}
+\end{figure}
+
+All artwork must be neat, clean, and legible. Lines should be dark enough for
+purposes of reproduction. The figure number and caption always appear after the
+figure. Place one line space before the figure caption and one line space after
+the figure. The figure caption should be lower case (except for first word and
+proper nouns); figures are numbered consecutively.
+
+You may use color figures.  However, it is best for the figure captions and the
+paper body to be legible if the paper is printed in either black/white or in
+color.
+
+\subsection{Tables}
+
+All tables must be centered, neat, clean and legible.  The table number and
+title always appear before the table.  See Table~\ref{sample-table}.
+
+Place one line space before the table title, one line space after the
+table title, and one line space after the table. The table title must
+be lower case (except for first word and proper nouns); tables are
+numbered consecutively.
+
+Note that publication-quality tables \emph{do not contain vertical rules.} We
+strongly suggest the use of the \verb+booktabs+ package, which allows for
+typesetting high-quality, professional tables:
+\begin{center}
+  \url{https://www.ctan.org/pkg/booktabs}
+\end{center}
+This package was used to typeset Table~\ref{sample-table}.
+
+\begin{table}
+  \caption{Sample table title}
+  \label{sample-table}
+  \centering
+  \begin{tabular}{lll}
+    \toprule
+    \multicolumn{2}{c}{Part}                   \\
+    \cmidrule(r){1-2}
+    Name     & Description     & Size ($\mu$m) \\
+    \midrule
+    Dendrite & Input terminal  & $\sim$100     \\
+    Axon     & Output terminal & $\sim$10      \\
+    Soma     & Cell body       & up to $10^6$  \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Math}
+Note that display math in bare TeX commands will not create correct line numbers for submission. Please use LaTeX (or AMSTeX) commands for unnumbered display math. (You really shouldn't be using \$\$ anyway; see \url{https://tex.stackexchange.com/questions/503/why-is-preferable-to} and \url{https://tex.stackexchange.com/questions/40492/what-are-the-differences-between-align-equation-and-displaymath} for more information.)
+
+\subsection{Final instructions}
+
+Do not change any aspects of the formatting parameters in the style files.  In
+particular, do not modify the width or length of the rectangle the text should
+fit into, and do not change font sizes (except perhaps in the
+\textbf{References} section; see below). Please note that pages should be
+numbered.
+
+\section{Preparing PDF files}
+
+Please prepare submission files with paper size ``US Letter,'' and not, for
+example, ``A4.''
+
+Fonts were the main cause of problems in the past years. Your PDF file must only
+contain Type 1 or Embedded TrueType fonts. Here are a few instructions to
+achieve this.
+
+\begin{itemize}
+
+\item You should directly generate PDF files using \verb+pdflatex+.
+
+\item You can check which fonts a PDF files uses.  In Acrobat Reader, select the
+  menu Files$>$Document Properties$>$Fonts and select Show All Fonts. You can
+  also use the program \verb+pdffonts+ which comes with \verb+xpdf+ and is
+  available out-of-the-box on most Linux machines.
+
+\item \verb+xfig+ "patterned" shapes are implemented with bitmap fonts.  Use
+  "solid" shapes instead.
+
+\item The \verb+\bbold+ package almost always uses bitmap fonts.  You should use
+  the equivalent AMS Fonts:
+\begin{verbatim}
+   \usepackage{amsfonts}
+\end{verbatim}
+followed by, e.g., \verb+\mathbb{R}+, \verb+\mathbb{N}+, or \verb+\mathbb{C}+
+for $\mathbb{R}$, $\mathbb{N}$ or $\mathbb{C}$.  You can also use the following
+workaround for reals, natural and complex:
+\begin{verbatim}
+   \newcommand{\RR}{I\!\!R} %real numbers
+   \newcommand{\Nat}{I\!\!N} %natural numbers
+   \newcommand{\CC}{I\!\!\!\!C} %complex numbers
+\end{verbatim}
+Note that \verb+amsfonts+ is automatically loaded by the \verb+amssymb+ package.
+
+\end{itemize}
+
+If your file contains type 3 fonts or non embedded TrueType fonts, we will ask
+you to fix it.
+
+\subsection{Margins in \LaTeX{}}
+
+Most of the margin problems come from figures positioned by hand using
+\verb+\special+ or other commands. We suggest using the command
+\verb+\includegraphics+ from the \verb+graphicx+ package. Always specify the
+figure width as a multiple of the line width as in the example below:
+\begin{verbatim}
+   \usepackage[pdftex]{graphicx} ...
+   \includegraphics[width=0.8\linewidth]{myfile.pdf}
+\end{verbatim}
+See Section 4.4 in the graphics bundle documentation
+(\url{http://mirrors.ctan.org/macros/latex/required/graphics/grfguide.pdf})
+
+A number of width problems arise when \LaTeX{} cannot properly hyphenate a
+line. Please give LaTeX hyphenation hints using the \verb+\-+ command when
+necessary.
+
+\begin{ack}
+Use unnumbered first level headings for the acknowledgments. All acknowledgments
+go at the end of the paper before the list of references. Moreover, you are required to declare
+funding (financial activities supporting the submitted work) and competing interests (related financial activities outside the submitted work).
+More information about this disclosure can be found at: \url{https://neurips.cc/Conferences/2024/PaperInformation/FundingDisclosure}.
+
+Do {\bf not} include this section in the anonymized submission, only in the final paper. You can use the \texttt{ack} environment provided in the style file to automatically hide this section in the anonymized submission.
+\end{ack}
+
+\section*{References}
+
+References follow the acknowledgments in the camera-ready paper. Use unnumbered first-level heading for
+the references. Any choice of citation style is acceptable as long as you are
+consistent. It is permissible to reduce the font size to \verb+small+ (9 point)
+when listing the references.
+Note that the Reference section does not count towards the page limit.
+\medskip
+
+{
+\small
+
+[1] Alexander, J.A.\ \& Mozer, M.C.\ (1995) Template-based algorithms for
+connectionist rule extraction. In G.\ Tesauro, D.S.\ Touretzky and T.K.\ Leen
+(eds.), {\it Advances in Neural Information Processing Systems 7},
+pp.\ 609--616. Cambridge, MA: MIT Press.
+
+[2] Bower, J.M.\ \& Beeman, D.\ (1995) {\it The Book of GENESIS: Exploring
+  Realistic Neural Models with the GEneral NEural SImulation System.}  New York:
+TELOS/Springer--Verlag.
+
+[3] Hasselmo, M.E., Schnell, E.\ \& Barkai, E.\ (1995) Dynamics of learning and
+recall at excitatory recurrent synapses and cholinergic modulation in rat
+hippocampal region CA3. {\it Journal of Neuroscience} {\bf 15}(7):5249-5262.
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\appendix
+
+\section{Appendix / supplemental material}
+
+Optionally include supplemental material (complete proofs, additional experiments and plots) in appendix.
+All such materials \textbf{SHOULD be included in the main submission.}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+\section*{NeurIPS Paper Checklist}
+
+%%% BEGIN INSTRUCTIONS %%%
+The checklist is designed to encourage best practices for responsible machine learning research, addressing issues of reproducibility, transparency, research ethics, and societal impact. Do not remove the checklist: {\bf The papers not including the checklist will be desk rejected.} The checklist should follow the references and follow the (optional) supplemental material.  The checklist does NOT count towards the page
+limit. 
+
+Please read the checklist guidelines carefully for information on how to answer these questions. For each question in the checklist:
+\begin{itemize}
+    \item You should answer \answerYes{}, \answerNo{}, or \answerNA{}.
+    \item \answerNA{} means either that the question is Not Applicable for that particular paper or the relevant information is Not Available.
+    \item Please provide a short (1–2 sentence) justification right after your answer (even for NA). 
+   % \item {\bf The papers not including the checklist will be desk rejected.}
+\end{itemize}
+
+{\bf The checklist answers are an integral part of your paper submission.} They are visible to the reviewers, area chairs, senior area chairs, and ethics reviewers. You will be asked to also include it (after eventual revisions) with the final version of your paper, and its final version will be published with the paper.
+
+The reviewers of your paper will be asked to use the checklist as one of the factors in their evaluation. While "\answerYes{}" is generally preferable to "\answerNo{}", it is perfectly acceptable to answer "\answerNo{}" provided a proper justification is given (e.g., "error bars are not reported because it would be too computationally expensive" or "we were unable to find the license for the dataset we used"). In general, answering "\answerNo{}" or "\answerNA{}" is not grounds for rejection. While the questions are phrased in a binary way, we acknowledge that the true answer is often more nuanced, so please just use your best judgment and write a justification to elaborate. All supporting evidence can appear either in the main paper or the supplemental material, provided in appendix. If you answer \answerYes{} to a question, in the justification please point to the section(s) where related material for the question can be found.
+
+IMPORTANT, please:
+\begin{itemize}
+    \item {\bf Delete this instruction block, but keep the section heading ``NeurIPS paper checklist"},
+    \item  {\bf Keep the checklist subsection headings, questions/answers and guidelines below.}
+    \item {\bf Do not modify the questions and only use the provided macros for your answers}.
+\end{itemize} 
+ 
+
+%%% END INSTRUCTIONS %%%
+
+
+\begin{enumerate}
+
+\item {\bf Claims}
+    \item[] Question: Do the main claims made in the abstract and introduction accurately reflect the paper's contributions and scope?
+    \item[] Answer: \answerTODO{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
+    \item[] Justification: \justificationTODO{}
+    \item[] Guidelines:
+    \begin{itemize}
+        \item The answer NA means that the abstract and introduction do not include the claims made in the paper.
+        \item The abstract and/or introduction should clearly state the claims made, including the contributions made in the paper and important assumptions and limitations. A No or NA answer to this question will not be perceived well by the reviewers. 
+        \item The claims made should match theoretical and experimental results, and reflect how much the results can be expected to generalize to other settings. 
+        \item It is fine to include aspirational goals as motivation as long as it is clear that these goals are not attained by the paper. 
+    \end{itemize}
+
+\item {\bf Limitations}
+    \item[] Question: Does the paper discuss the limitations of the work performed by the authors?
+    \item[] Answer: \answerTODO{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
+    \item[] Justification: \justificationTODO{}
+    \item[] Guidelines:
+    \begin{itemize}
+        \item The answer NA means that the paper has no limitation while the answer No means that the paper has limitations, but those are not discussed in the paper. 
+        \item The authors are encouraged to create a separate "Limitations" section in their paper.
+        \item The paper should point out any strong assumptions and how robust the results are to violations of these assumptions (e.g., independence assumptions, noiseless settings, model well-specification, asymptotic approximations only holding locally). The authors should reflect on how these assumptions might be violated in practice and what the implications would be.
+        \item The authors should reflect on the scope of the claims made, e.g., if the approach was only tested on a few datasets or with a few runs. In general, empirical results often depend on implicit assumptions, which should be articulated.
+        \item The authors should reflect on the factors that influence the performance of the approach. For example, a facial recognition algorithm may perform poorly when image resolution is low or images are taken in low lighting. Or a speech-to-text system might not be used reliably to provide closed captions for online lectures because it fails to handle technical jargon.
+        \item The authors should discuss the computational efficiency of the proposed algorithms and how they scale with dataset size.
+        \item If applicable, the authors should discuss possible limitations of their approach to address problems of privacy and fairness.
+        \item While the authors might fear that complete honesty about limitations might be used by reviewers as grounds for rejection, a worse outcome might be that reviewers discover limitations that aren't acknowledged in the paper. The authors should use their best judgment and recognize that individual actions in favor of transparency play an important role in developing norms that preserve the integrity of the community. Reviewers will be specifically instructed to not penalize honesty concerning limitations.
+    \end{itemize}
+
+\item {\bf Theory Assumptions and Proofs}
+    \item[] Question: For each theoretical result, does the paper provide the full set of assumptions and a complete (and correct) proof?
+    \item[] Answer: \answerTODO{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
+    \item[] Justification: \justificationTODO{}
+    \item[] Guidelines:
+    \begin{itemize}
+        \item The answer NA means that the paper does not include theoretical results. 
+        \item All the theorems, formulas, and proofs in the paper should be numbered and cross-referenced.
+        \item All assumptions should be clearly stated or referenced in the statement of any theorems.
+        \item The proofs can either appear in the main paper or the supplemental material, but if they appear in the supplemental material, the authors are encouraged to provide a short proof sketch to provide intuition. 
+        \item Inversely, any informal proof provided in the core of the paper should be complemented by formal proofs provided in appendix or supplemental material.
+        \item Theorems and Lemmas that the proof relies upon should be properly referenced. 
+    \end{itemize}
+
+    \item {\bf Experimental Result Reproducibility}
+    \item[] Question: Does the paper fully disclose all the information needed to reproduce the main experimental results of the paper to the extent that it affects the main claims and/or conclusions of the paper (regardless of whether the code and data are provided or not)?
+    \item[] Answer: \answerTODO{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
+    \item[] Justification: \justificationTODO{}
+    \item[] Guidelines:
+    \begin{itemize}
+        \item The answer NA means that the paper does not include experiments.
+        \item If the paper includes experiments, a No answer to this question will not be perceived well by the reviewers: Making the paper reproducible is important, regardless of whether the code and data are provided or not.
+        \item If the contribution is a dataset and/or model, the authors should describe the steps taken to make their results reproducible or verifiable. 
+        \item Depending on the contribution, reproducibility can be accomplished in various ways. For example, if the contribution is a novel architecture, describing the architecture fully might suffice, or if the contribution is a specific model and empirical evaluation, it may be necessary to either make it possible for others to replicate the model with the same dataset, or provide access to the model. In general. releasing code and data is often one good way to accomplish this, but reproducibility can also be provided via detailed instructions for how to replicate the results, access to a hosted model (e.g., in the case of a large language model), releasing of a model checkpoint, or other means that are appropriate to the research performed.
+        \item While NeurIPS does not require releasing code, the conference does require all submissions to provide some reasonable avenue for reproducibility, which may depend on the nature of the contribution. For example
+        \begin{enumerate}
+            \item If the contribution is primarily a new algorithm, the paper should make it clear how to reproduce that algorithm.
+            \item If the contribution is primarily a new model architecture, the paper should describe the architecture clearly and fully.
+            \item If the contribution is a new model (e.g., a large language model), then there should either be a way to access this model for reproducing the results or a way to reproduce the model (e.g., with an open-source dataset or instructions for how to construct the dataset).
+            \item We recognize that reproducibility may be tricky in some cases, in which case authors are welcome to describe the particular way they provide for reproducibility. In the case of closed-source models, it may be that access to the model is limited in some way (e.g., to registered users), but it should be possible for other researchers to have some path to reproducing or verifying the results.
+        \end{enumerate}
+    \end{itemize}
+
+
+\item {\bf Open access to data and code}
+    \item[] Question: Does the paper provide open access to the data and code, with sufficient instructions to faithfully reproduce the main experimental results, as described in supplemental material?
+    \item[] Answer: \answerTODO{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
+    \item[] Justification: \justificationTODO{}
+    \item[] Guidelines:
+    \begin{itemize}
+        \item The answer NA means that paper does not include experiments requiring code.
+        \item Please see the NeurIPS code and data submission guidelines (\url{https://nips.cc/public/guides/CodeSubmissionPolicy}) for more details.
+        \item While we encourage the release of code and data, we understand that this might not be possible, so "No" is an acceptable answer. Papers cannot be rejected simply for not including code, unless this is central to the contribution (e.g., for a new open-source benchmark).
+        \item The instructions should contain the exact command and environment needed to run to reproduce the results. See the NeurIPS code and data submission guidelines (\url{https://nips.cc/public/guides/CodeSubmissionPolicy}) for more details.
+        \item The authors should provide instructions on data access and preparation, including how to access the raw data, preprocessed data, intermediate data, and generated data, etc.
+        \item The authors should provide scripts to reproduce all experimental results for the new proposed method and baselines. If only a subset of experiments are reproducible, they should state which ones are omitted from the script and why.
+        \item At submission time, to preserve anonymity, the authors should release anonymized versions (if applicable).
+        \item Providing as much information as possible in supplemental material (appended to the paper) is recommended, but including URLs to data and code is permitted.
+    \end{itemize}
+
+
+\item {\bf Experimental Setting/Details}
+    \item[] Question: Does the paper specify all the training and test details (e.g., data splits, hyperparameters, how they were chosen, type of optimizer, etc.) necessary to understand the results?
+    \item[] Answer: \answerTODO{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
+    \item[] Justification: \justificationTODO{}
+    \item[] Guidelines:
+    \begin{itemize}
+        \item The answer NA means that the paper does not include experiments.
+        \item The experimental setting should be presented in the core of the paper to a level of detail that is necessary to appreciate the results and make sense of them.
+        \item The full details can be provided either with the code, in appendix, or as supplemental material.
+    \end{itemize}
+
+\item {\bf Experiment Statistical Significance}
+    \item[] Question: Does the paper report error bars suitably and correctly defined or other appropriate information about the statistical significance of the experiments?
+    \item[] Answer: \answerTODO{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
+    \item[] Justification: \justificationTODO{}
+    \item[] Guidelines:
+    \begin{itemize}
+        \item The answer NA means that the paper does not include experiments.
+        \item The authors should answer "Yes" if the results are accompanied by error bars, confidence intervals, or statistical significance tests, at least for the experiments that support the main claims of the paper.
+        \item The factors of variability that the error bars are capturing should be clearly stated (for example, train/test split, initialization, random drawing of some parameter, or overall run with given experimental conditions).
+        \item The method for calculating the error bars should be explained (closed form formula, call to a library function, bootstrap, etc.)
+        \item The assumptions made should be given (e.g., Normally distributed errors).
+        \item It should be clear whether the error bar is the standard deviation or the standard error of the mean.
+        \item It is OK to report 1-sigma error bars, but one should state it. The authors should preferably report a 2-sigma error bar than state that they have a 96\% CI, if the hypothesis of Normality of errors is not verified.
+        \item For asymmetric distributions, the authors should be careful not to show in tables or figures symmetric error bars that would yield results that are out of range (e.g. negative error rates).
+        \item If error bars are reported in tables or plots, The authors should explain in the text how they were calculated and reference the corresponding figures or tables in the text.
+    \end{itemize}
+
+\item {\bf Experiments Compute Resources}
+    \item[] Question: For each experiment, does the paper provide sufficient information on the computer resources (type of compute workers, memory, time of execution) needed to reproduce the experiments?
+    \item[] Answer: \answerTODO{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
+    \item[] Justification: \justificationTODO{}
+    \item[] Guidelines:
+    \begin{itemize}
+        \item The answer NA means that the paper does not include experiments.
+        \item The paper should indicate the type of compute workers CPU or GPU, internal cluster, or cloud provider, including relevant memory and storage.
+        \item The paper should provide the amount of compute required for each of the individual experimental runs as well as estimate the total compute. 
+        \item The paper should disclose whether the full research project required more compute than the experiments reported in the paper (e.g., preliminary or failed experiments that didn't make it into the paper). 
+    \end{itemize}
+    
+\item {\bf Code Of Ethics}
+    \item[] Question: Does the research conducted in the paper conform, in every respect, with the NeurIPS Code of Ethics \url{https://neurips.cc/public/EthicsGuidelines}?
+    \item[] Answer: \answerTODO{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
+    \item[] Justification: \justificationTODO{}
+    \item[] Guidelines:
+    \begin{itemize}
+        \item The answer NA means that the authors have not reviewed the NeurIPS Code of Ethics.
+        \item If the authors answer No, they should explain the special circumstances that require a deviation from the Code of Ethics.
+        \item The authors should make sure to preserve anonymity (e.g., if there is a special consideration due to laws or regulations in their jurisdiction).
+    \end{itemize}
+
+
+\item {\bf Broader Impacts}
+    \item[] Question: Does the paper discuss both potential positive societal impacts and negative societal impacts of the work performed?
+    \item[] Answer: \answerTODO{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
+    \item[] Justification: \justificationTODO{}
+    \item[] Guidelines:
+    \begin{itemize}
+        \item The answer NA means that there is no societal impact of the work performed.
+        \item If the authors answer NA or No, they should explain why their work has no societal impact or why the paper does not address societal impact.
+        \item Examples of negative societal impacts include potential malicious or unintended uses (e.g., disinformation, generating fake profiles, surveillance), fairness considerations (e.g., deployment of technologies that could make decisions that unfairly impact specific groups), privacy considerations, and security considerations.
+        \item The conference expects that many papers will be foundational research and not tied to particular applications, let alone deployments. However, if there is a direct path to any negative applications, the authors should point it out. For example, it is legitimate to point out that an improvement in the quality of generative models could be used to generate deepfakes for disinformation. On the other hand, it is not needed to point out that a generic algorithm for optimizing neural networks could enable people to train models that generate Deepfakes faster.
+        \item The authors should consider possible harms that could arise when the technology is being used as intended and functioning correctly, harms that could arise when the technology is being used as intended but gives incorrect results, and harms following from (intentional or unintentional) misuse of the technology.
+        \item If there are negative societal impacts, the authors could also discuss possible mitigation strategies (e.g., gated release of models, providing defenses in addition to attacks, mechanisms for monitoring misuse, mechanisms to monitor how a system learns from feedback over time, improving the efficiency and accessibility of ML).
+    \end{itemize}
+    
+\item {\bf Safeguards}
+    \item[] Question: Does the paper describe safeguards that have been put in place for responsible release of data or models that have a high risk for misuse (e.g., pretrained language models, image generators, or scraped datasets)?
+    \item[] Answer: \answerTODO{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
+    \item[] Justification: \justificationTODO{}
+    \item[] Guidelines:
+    \begin{itemize}
+        \item The answer NA means that the paper poses no such risks.
+        \item Released models that have a high risk for misuse or dual-use should be released with necessary safeguards to allow for controlled use of the model, for example by requiring that users adhere to usage guidelines or restrictions to access the model or implementing safety filters. 
+        \item Datasets that have been scraped from the Internet could pose safety risks. The authors should describe how they avoided releasing unsafe images.
+        \item We recognize that providing effective safeguards is challenging, and many papers do not require this, but we encourage authors to take this into account and make a best faith effort.
+    \end{itemize}
+
+\item {\bf Licenses for existing assets}
+    \item[] Question: Are the creators or original owners of assets (e.g., code, data, models), used in the paper, properly credited and are the license and terms of use explicitly mentioned and properly respected?
+    \item[] Answer: \answerTODO{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
+    \item[] Justification: \justificationTODO{}
+    \item[] Guidelines:
+    \begin{itemize}
+        \item The answer NA means that the paper does not use existing assets.
+        \item The authors should cite the original paper that produced the code package or dataset.
+        \item The authors should state which version of the asset is used and, if possible, include a URL.
+        \item The name of the license (e.g., CC-BY 4.0) should be included for each asset.
+        \item For scraped data from a particular source (e.g., website), the copyright and terms of service of that source should be provided.
+        \item If assets are released, the license, copyright information, and terms of use in the package should be provided. For popular datasets, \url{paperswithcode.com/datasets} has curated licenses for some datasets. Their licensing guide can help determine the license of a dataset.
+        \item For existing datasets that are re-packaged, both the original license and the license of the derived asset (if it has changed) should be provided.
+        \item If this information is not available online, the authors are encouraged to reach out to the asset's creators.
+    \end{itemize}
+
+\item {\bf New Assets}
+    \item[] Question: Are new assets introduced in the paper well documented and is the documentation provided alongside the assets?
+    \item[] Answer: \answerTODO{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
+    \item[] Justification: \justificationTODO{}
+    \item[] Guidelines:
+    \begin{itemize}
+        \item The answer NA means that the paper does not release new assets.
+        \item Researchers should communicate the details of the dataset/code/model as part of their submissions via structured templates. This includes details about training, license, limitations, etc. 
+        \item The paper should discuss whether and how consent was obtained from people whose asset is used.
+        \item At submission time, remember to anonymize your assets (if applicable). You can either create an anonymized URL or include an anonymized zip file.
+    \end{itemize}
+
+\item {\bf Crowdsourcing and Research with Human Subjects}
+    \item[] Question: For crowdsourcing experiments and research with human subjects, does the paper include the full text of instructions given to participants and screenshots, if applicable, as well as details about compensation (if any)? 
+    \item[] Answer: \answerTODO{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
+    \item[] Justification: \justificationTODO{}
+    \item[] Guidelines:
+    \begin{itemize}
+        \item The answer NA means that the paper does not involve crowdsourcing nor research with human subjects.
+        \item Including this information in the supplemental material is fine, but if the main contribution of the paper involves human subjects, then as much detail as possible should be included in the main paper. 
+        \item According to the NeurIPS Code of Ethics, workers involved in data collection, curation, or other labor should be paid at least the minimum wage in the country of the data collector. 
+    \end{itemize}
+
+\item {\bf Institutional Review Board (IRB) Approvals or Equivalent for Research with Human Subjects}
+    \item[] Question: Does the paper describe potential risks incurred by study participants, whether such risks were disclosed to the subjects, and whether Institutional Review Board (IRB) approvals (or an equivalent approval/review based on the requirements of your country or institution) were obtained?
+    \item[] Answer: \answerTODO{} % Replace by \answerYes{}, \answerNo{}, or \answerNA{}.
+    \item[] Justification: \justificationTODO{}
+    \item[] Guidelines:
+    \begin{itemize}
+        \item The answer NA means that the paper does not involve crowdsourcing nor research with human subjects.
+        \item Depending on the country in which research is conducted, IRB approval (or equivalent) may be required for any human subjects research. If you obtained IRB approval, you should clearly state this in the paper. 
+        \item We recognize that the procedures for this may vary significantly between institutions and locations, and we expect authors to adhere to the NeurIPS Code of Ethics and the guidelines for their institution. 
+        \item For initial submissions, do not include any information that would break anonymity (if applicable), such as the institution conducting the review.
+    \end{itemize}
+
+\end{enumerate}
+
+
+\end{document}

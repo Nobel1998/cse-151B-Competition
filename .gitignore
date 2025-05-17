@@ -1,0 +1,105 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+env/
+.env
+*.env
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# IDE / Editor specific
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# PyTorch Lightning logs
+lightning_logs/
+
+# Data files - IMPORTANT: Add any other large data files or folders
+# Assuming your main zarr dataset is within a folder that should be ignored,
+# or if it's a single large file in the root.
+# If processed_data_cse151b_v2_corrupted_ssp245.zarr is a directory:
+processed_data_cse151b_v2_corrupted_ssp245/
+# If it's a file in the root (less likely for Zarr but possible):
+# processed_data_cse151b_v2_corrupted_s_ssp245.zarr 
+# Or more generally if data is in a 'data' folder:
+# data/
+# Adjust this based on your actual data storage structure relative to the Git root.
+# For the specific path given for the Zarr file earlier, if it's directly under cse151b-spring2025-competition folder
+# and that folder is inside your git root:
+cse151b-spring2025-competition/processed_data_cse151b_v2_corrupted_ssp245/
+
+# Output / Submission files
+submissions/
+*.csv
+*.npy
+*.log
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Instances
+*.instance
+docs/_build/
+
+# Temporary files
+*.tmp
+*.temp 
