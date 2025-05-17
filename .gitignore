@@ -30,7 +30,7 @@ lightning_logs/
 # Assuming your main zarr dataset is within a folder that should be ignored,
 # or if it's a single large file in the root.
 # If processed_data_cse151b_v2_corrupted_ssp245.zarr is a directory:
-processed_data_cse151b_v2_corrupted_ssp245/
+# processed_data_cse151b_v2_corrupted_ssp245/
 # If it's a file in the root (less likely for Zarr but possible):
 # processed_data_cse151b_v2_corrupted_s_ssp245.zarr 
 # Or more generally if data is in a 'data' folder:
@@ -38,7 +38,7 @@ processed_data_cse151b_v2_corrupted_ssp245/
 # Adjust this based on your actual data storage structure relative to the Git root.
 # For the specific path given for the Zarr file earlier, if it's directly under cse151b-spring2025-competition folder
 # and that folder is inside your git root:
-cse151b-spring2025-competition/processed_data_cse151b_v2_corrupted_ssp245/
+# cse151b-spring2025-competition/processed_data_cse151b_v2_corrupted_ssp245/
 
 # Output / Submission files
 submissions/
